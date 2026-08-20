@@ -1,0 +1,86 @@
+name: Pre-market brief
+
+on:
+  schedule:
+    # GitHub delivers scheduled events late and unpredictably -- 2-9 hours,
+    # median ~3.5h, as measured on kylebupp/ORB-Trading-Alerts. A single cron
+    # at 7:30 ET would therefore arrive after the open on most days, which is
+    # useless for a pre-market brief.
+    #
+    # So: fire every 30 minutes across a wide UTC window and let the gate
+    # below discard every delivery except one landing inside the 7:15-8:45 ET
+    # send window. The window spans 02:00-13:30 UTC because a delivery has to
+    # be scheduled 2-9h BEFORE the target to arrive during it. The gate, not
+    # this cron, decides what actually sends.
+    - cron: "0,30 2-13 * * *"
+  workflow_dispatch:        # manual run ignores the window, for testing
+
+permissions:
+  contents: write           # to commit the once-per-day marker
+
+concurrency:
+  group: market-brief       # two deliveries can land together; serialise them
+  cancel-in-progress: false
+
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Gate on weekday, send window, and once-per-day
+        id: gate
+        run: |
+          NOW=$(TZ=America/New_York date +%H:%M)
+          TODAY=$(TZ=America/New_York date +%F)
+          DOW=$(TZ=America/New_York date +%u)          # 1=Mon .. 7=Sun
+          LAST=$(cat state/last_sent.txt 2>/dev/null || echo none)
+          MANUAL=${{ github.event_name == 'workflow_dispatch' }}
+          echo "ET now=$NOW today=$TODAY dow=$DOW last_sent=$LAST manual=$MANUAL"
+
+          GO=no
+          if [ "$MANUAL" = "true" ]; then
+            GO=yes
+            echo "manual dispatch -> bypassing window"
+          elif [ "$DOW" -gt 5 ]; then
+            echo "weekend in ET -> skip"
+          elif [ "$TODAY" = "$LAST" ]; then
+            echo "already sent today -> skip"
+          elif [[ "$NOW" > "07:14" && "$NOW" < "08:46" ]]; then
+            GO=yes
+            echo "inside send window -> go"
+          else
+            echo "outside 07:15-08:45 ET send window -> skip"
+          fi
+
+          echo "go=$GO"     >> "$GITHUB_OUTPUT"
+          echo "today=$TODAY" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.go == 'yes'
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        if: steps.gate.outputs.go == 'yes'
+        run: pip install -r requirements.txt
+
+      - name: Send brief
+        if: steps.gate.outputs.go == 'yes'
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python brief.py
+
+      - name: Record the send
+        # Only scheduled runs claim the day; a manual test must not block the
+        # real morning delivery.
+        if: steps.gate.outputs.go == 'yes' && github.event_name != 'workflow_dispatch'
+        run: |
+          mkdir -p state
+          echo "${{ steps.gate.outputs.today }}" > state/last_sent.txt
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/last_sent.txt
+          git commit -m "sent ${{ steps.gate.outputs.today }}" || exit 0
+          git push
