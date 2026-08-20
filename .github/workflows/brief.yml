@@ -3,7 +3,7 @@ name: Pre-market brief
 on:
   schedule:
     # GitHub delivers scheduled events late and unpredictably -- 2-9 hours,
-    # median ~3.5h, as measured on kylebupp/ORB-Trading-Alerts. A single cron
+    # median ~3.5h, as measured on another repo of mine. A single cron
     # at 7:30 ET would therefore arrive after the open on most days, which is
     # useless for a pre-market brief.
     #

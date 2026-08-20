@@ -3,13 +3,10 @@
 Daily pre-market briefing to Telegram, ~7:30 AM ET on weekdays, via GitHub
 Actions. Runs whether or not any personal machine is awake.
 
-Sends through the same Telegram bot as `ORB-Trading-Alerts`, so the brief
-lands in that chat thread.
-
 ## Timing — read this before trusting the schedule
 
-GitHub does not deliver scheduled events on time. Measured on
-`ORB-Trading-Alerts`: **2-9 hours late, median ~3.5h**. A single `30 11 * * 1-5`
+GitHub does not deliver scheduled events on time. Measured over
+months on another repo: **2-9 hours late, median ~3.5h**. A single `30 11 * * 1-5`
 cron would arrive after the open most days, which for a pre-market brief is
 worthless.
 
@@ -43,14 +40,14 @@ morning's real brief.
 
 ## Secrets
 
-Repository secrets, same names and values as `ORB-Trading-Alerts`:
+Repository secrets:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 
 To re-read the token: Telegram → @BotFather → `/mybots` → the bot → **API
-Token**. Never `/revoke` — that rotates it and breaks ORB until its secret is
-updated too.
+Token**. Avoid `/revoke` — it rotates the token and breaks anything else
+using the same bot until those secrets are updated too.
 
 ## Testing
 
@@ -75,7 +72,7 @@ connection. The first real morning run is the test; check the Actions log for
 
 ## Local copy
 
-A parallel setup lives at `C:\Users\kyleb\market-brief\` with a Windows Task
-Scheduler job and a fuller README covering the data-source gotchas, the
-economic-calendar condensing rules, and the mover diagnostics. Keep only one
-of the two enabled or two briefs arrive each morning.
+A parallel setup exists on a local machine with an OS-level scheduled task and
+a fuller README covering data-source gotchas, the economic-calendar condensing
+rules, and the mover diagnostics. Keep only one of the two enabled, or two
+briefs arrive each morning.
